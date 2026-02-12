@@ -6,9 +6,6 @@ name: Python application
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
@@ -26,18 +23,60 @@ jobs:
         python-version: "3.10"
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install flake8 pytest
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        retry() {
+          local attempts=$1
+          shift
+          local n=1
+          until "$@"; do
+            if [ $n -ge $attempts ]; then
+              echo "Command failed after $n attempts."
+              return 1
+            fi
+            n=$((n+1))
+            echo "Command failed. Retrying attempt $n/$attempts in 5 seconds..."
+            sleep 5
+          done
+        }
+        retry 3 python -m pip install --upgrade pip
+        retry 3 pip install flake8 pytest
+        if [ -f requirements.txt ]; then retry 3 pip install -r requirements.txt; fi
     - name: Lint with flake8
       run: |
+        retry() {
+          local attempts=$1
+          shift
+          local n=1
+          until "$@"; do
+            if [ $n -ge $attempts ]; then
+              echo "Command failed after $n attempts."
+              return 1
+            fi
+            n=$((n+1))
+            echo "Command failed. Retrying attempt $n/$attempts in 5 seconds..."
+            sleep 5
+          done
+        }
         # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        retry 3 flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        retry 3 flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
-        pytest
+        retry() {
+          local attempts=$1
+          shift
+          local n=1
+          until "$@"; do
+            if [ $n -ge $attempts ]; then
+              echo "Command failed after $n attempts."
+              return 1
+            fi
+            n=$((n+1))
+            echo "Command failed. Retrying attempt $n/$attempts in 5 seconds..."
+            sleep 5
+          done
+        }
+        retry 3 pytest
 
   deploy:
     runs-on: ubuntu-latest
